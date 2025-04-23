@@ -1,0 +1,13 @@
+{
+    "files.associations": {
+		"stdio.h": "c",
+		"stdbool.h": "c",
+		"stdint.h": "c",
+		"raylib.h": "c",
+		"math.h": "c",
+		"corecrt_math.h": "c",
+		"corecrt_math_defines.h": "c",
+		"corecrt.h": "c",
+		"iosfwd": "c"
+	}
+}
