@@ -1,2 +1,4 @@
 app.exe
 .vscode
+app
+.direnv
