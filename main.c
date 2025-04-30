@@ -7,6 +7,9 @@
 typedef struct Player {
     Vector2 position;
     Vector2 velocity;
+    bool grappleExist; // Does the Grapple exist rn? 
+    Vector2 grapplePosition; // Where is the grapple? 
+    Vector2 mPosition; 
 } Player;
 
 typedef struct Cubies {
@@ -19,7 +22,7 @@ const float PLAYER_HEIGHT = 60;
 const float LINE_WIDTH = 5;
 
 void DrawPlayer(Player *player) {
-    Vector2 pos = player->position; 
+    Vector2 pos = (*player).position; 
     DrawRectangle(pos.x-PLAYER_WIDTH/2-1, pos.y-PLAYER_HEIGHT/2-1, PLAYER_WIDTH+2, PLAYER_HEIGHT+2, BLACK);
     DrawRectangleLinesEx(
         (Rectangle) {.x=pos.x-LINE_WIDTH-PLAYER_WIDTH/2, .y=pos.y-PLAYER_HEIGHT/2-LINE_WIDTH, .width = PLAYER_WIDTH+2*LINE_WIDTH, .height = PLAYER_HEIGHT+2*LINE_WIDTH},
@@ -64,7 +67,34 @@ bool CollidesWith(Player* player, Rectangle object) {
     return false;    
 }
 
-GameState Update(float delta, Player* player, Cubies cubies) {
+bool GrappleLocationCheck(Player* player, Rectangle object){
+    float x = (*player).mPosition.x;
+    float y = (*player).mPosition.y;
+    if (x > object.x && x < object.x + object.width){
+        if (y > object.y && y < object.y + object.height){
+            return true;
+        }
+
+    }
+    return false;
+}
+
+void FireGrapplingHook(Player* player, Cubies cubies) {
+    for (int i = 0; i < cubies.length; i++) {
+        if (GrappleLocationCheck(player, cubies.data[i])) {
+            (*player).grapplePosition.x = (*player).mPosition.x;
+            (*player).grapplePosition.y = (*player).mPosition.y;
+            (*player).grappleExist = true;
+            return;
+        }
+    }
+}
+
+void RetractGrapplingHook (Player* player) {
+    (*player).grappleExist = false;
+}
+
+GameState Update(float delta, Player* player, Cubies cubies, bool mPressed) {
     if ((*player).position.y > FLOOR_HEIGHT - PLAYER_HEIGHT/2) {
         return GAME_OVER;
     }
@@ -73,6 +103,15 @@ GameState Update(float delta, Player* player, Cubies cubies) {
         if (CollidesWith(player, cubies.data[i])) {
             return GAME_OVER;
         }    
+    }
+
+    if (mPressed) {
+        if (!(*player).grappleExist) { 
+            FireGrapplingHook(player, cubies);
+        }
+        else { 
+            RetractGrapplingHook(player); 
+        }
     }
 
     Vector2 iPosition = (*player).position;
@@ -90,7 +129,7 @@ GameState Update(float delta, Player* player, Cubies cubies) {
 
 
 int main() {
-    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Grappling Hook Game!!!!");
+    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Drowning Point");
     SetTargetFPS(60);
 
     Player* player = &(Player) {
@@ -101,7 +140,14 @@ int main() {
         .velocity = (Vector2) {
             .x = 100,
             .y = -200,
-        }
+        },
+        .grappleExist = false,
+        .grapplePosition = (Vector2) {
+            .x = 0,
+            .y = 0,
+
+        },
+        .mPosition = GetMousePosition(),
     };
     Camera2D camera = (Camera2D) {
         .offset = (Vector2) {.x = SCREEN_WIDTH/2, .y = SCREEN_HEIGHT/2},
@@ -130,9 +176,10 @@ int main() {
     GameState state = GAME_OK;
     while (!WindowShouldClose()) {
         double delta = GetFrameTime();
-        
+        bool mPressed = IsMouseButtonPressed(MOUSE_BUTTON_LEFT); 
         if (state == GAME_OK) {
-            state = Update(delta, player, cubies);
+            (*player).mPosition = GetMousePosition();
+            state = Update(delta, player, cubies, mPressed);
         }
 
         BeginDrawing();
