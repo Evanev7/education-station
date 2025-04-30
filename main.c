@@ -70,8 +70,9 @@ bool CollidesWith(Player* player, Rectangle object) {
 bool GrappleLocationCheck(Player* player, Rectangle object){
     float x = (*player).mPosition.x;
     float y = (*player).mPosition.y;
+    printf("reached True Check %f %f %f %f \n", object.x, object.y, x, y);
     if (x > object.x && x < object.x + object.width){
-        if (y > object.y && y < object.y + object.height){
+        if (y > object.y && y < object.y + object.height){ 
             return true;
         }
 
@@ -105,11 +106,11 @@ GameState Update(float delta, Player* player, Cubies cubies, bool mPressed) {
         }    
     }
 
-    if (mPressed) {
-        if (!(*player).grappleExist) { 
+    if (mPressed) { printf("reached");
+        if (!(*player).grappleExist) {;
             FireGrapplingHook(player, cubies);
         }
-        else { 
+        else { printf("reached 3");
             RetractGrapplingHook(player); 
         }
     }
@@ -162,7 +163,7 @@ int main() {
         .width = 20,
     };
     Rectangle cubie2 = (Rectangle) {
-        .x = 200,
+        .x = 500,
         .y = -200,
         .height = 20,
         .width = 20,
@@ -178,7 +179,7 @@ int main() {
         double delta = GetFrameTime();
         bool mPressed = IsMouseButtonPressed(MOUSE_BUTTON_LEFT); 
         if (state == GAME_OK) {
-            (*player).mPosition = GetMousePosition();
+            (*player).mPosition = GetScreenToWorld2D(GetMousePosition(), camera);
             state = Update(delta, player, cubies, mPressed);
         }
 
@@ -188,6 +189,9 @@ int main() {
                 DrawPlayer(player);
                 DrawRectangleRec(cubie, BLACK);
                 DrawRectangleRec(cubie2, BLACK);
+                if ((*player).grappleExist) {
+                    DrawLineEx((*player).position, (*player).grapplePosition, 10, PINK);
+                }
             EndMode2D();
             if (state == GAME_OVER) {
                 DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, (Color) {.r = 127, .g = 127, .b = 127, .a = 80});
