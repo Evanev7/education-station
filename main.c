@@ -1,15 +1,17 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <math.h>
 
 #include "raylib.h"
 
 typedef struct Player {
     Vector2 position;
     Vector2 velocity;
-    bool grappleExist; // Does the Grapple exist rn? 
     Vector2 grapplePosition; // Where is the grapple? 
-    Vector2 mPosition; 
+    Vector2 mPosition;
+    float grappleLength;
+    bool grappleExist; // Does the Grapple exist rn? 
 } Player;
 
 typedef struct Cubies {
@@ -55,6 +57,11 @@ typedef enum GameState {
 If player position >< cube  
 */
 
+float PythagLength(Vector2 point1, Vector2 point2){
+    float a = point1.x - point2.x;
+    float b = point1.y - point2.y;
+    return sqrtf(a*a + b*b);
+}
 
 bool CollidesWith(Player* player, Rectangle object) {
     float x = (*player).position.x;
@@ -70,7 +77,7 @@ bool CollidesWith(Player* player, Rectangle object) {
 bool GrappleLocationCheck(Player* player, Rectangle object){
     float x = (*player).mPosition.x;
     float y = (*player).mPosition.y;
-    printf("reached True Check %f %f %f %f \n", object.x, object.y, x, y);
+    // printf("reached True Check %f %f %f %f \n", object.x, object.y, x, y);
     if (x > object.x && x < object.x + object.width){
         if (y > object.y && y < object.y + object.height){ 
             return true;
@@ -86,6 +93,7 @@ void FireGrapplingHook(Player* player, Cubies cubies) {
             (*player).grapplePosition.x = (*player).mPosition.x;
             (*player).grapplePosition.y = (*player).mPosition.y;
             (*player).grappleExist = true;
+            (*player).grappleLength = PythagLength((*player).position, (*player).grapplePosition);
             return;
         }
     }
@@ -106,24 +114,27 @@ GameState Update(float delta, Player* player, Cubies cubies, bool mPressed) {
         }    
     }
 
-    if (mPressed) { printf("reached");
+    if (mPressed) {
         if (!(*player).grappleExist) {;
             FireGrapplingHook(player, cubies);
         }
-        else { printf("reached 3");
+        else {
             RetractGrapplingHook(player); 
         }
     }
 
     Vector2 iPosition = (*player).position;
     Vector2 iVelocity = (*player).velocity;
-    (*player).position = (Vector2) {
-        .x = iPosition.x + iVelocity.x * delta, // x, v = x/t, v * t has units of x
-        .y = iPosition.y + iVelocity.y * delta,
-    };
     (*player).velocity = (Vector2) {
         .x = iVelocity.x,
         .y = iVelocity.y + delta * GRAVITY,
+    };
+    if ((*player).grappleExist) {
+
+    }
+    (*player).position = (Vector2) {
+        .x = iPosition.x + iVelocity.x * delta, // x, v = x/t, v * t has units of x
+        .y = iPosition.y + iVelocity.y * delta,
     };
     return GAME_OK;
 }
