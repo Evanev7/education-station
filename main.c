@@ -5,12 +5,18 @@
 
 #include "raylib.h"
 
+typedef struct Input {
+    bool mousePressed;
+    float swingDirection;
+    float grappleReel;
+} Input;
+
 typedef struct Player {
     Vector2 position;
     Vector2 velocity;
     Vector2 grapplePosition; // Where is the grapple? 
     Vector2 mPosition;
-    float grappleLength;
+    float grappleMaxLength;
     bool grappleExist; // Does the Grapple exist rn? 
 } Player;
 
@@ -22,6 +28,9 @@ typedef struct Cubies {
 const float PLAYER_WIDTH = 40;
 const float PLAYER_HEIGHT = 60;
 const float LINE_WIDTH = 5;
+
+const float GRAPPLE_REEL_SPEED = 40;
+const float SWING_SPEED = 20;
 
 void DrawPlayer(Player *player) {
     Vector2 pos = (*player).position; 
@@ -87,13 +96,41 @@ bool GrappleLocationCheck(Player* player, Rectangle object){
     return false;
 }
 
+Vector2 VectorAdd(Vector2 v1, Vector2 v2) {
+    return (Vector2) {
+        .x = v1.x + v2.x,
+        .y = v1.y + v2.y,
+    };
+}
+
+Vector2 VectorSub(Vector2 v1, Vector2 v2) {
+    return (Vector2) {
+        .x = v1.x - v2.x,
+        .y = v1.y - v2.y,
+    };
+}
+
+Vector2 VectorMul(Vector2 v1, float scalar) {
+    return (Vector2) {
+        .x = v1.x * scalar,
+        .y = v1.y * scalar,
+    };
+}
+
+Vector2 VectorDiv(Vector2 v1, float scalar) {
+    return (Vector2) {
+        .x = v1.x / scalar,
+        .y = v1.y / scalar,
+    };
+}
+
 void FireGrapplingHook(Player* player, Cubies cubies) {
     for (int i = 0; i < cubies.length; i++) {
         if (GrappleLocationCheck(player, cubies.data[i])) {
             (*player).grapplePosition.x = (*player).mPosition.x;
             (*player).grapplePosition.y = (*player).mPosition.y;
             (*player).grappleExist = true;
-            (*player).grappleLength = PythagLength((*player).position, (*player).grapplePosition);
+            (*player).grappleMaxLength = PythagLength((*player).position, (*player).grapplePosition);
             return;
         }
     }
@@ -103,7 +140,7 @@ void RetractGrapplingHook (Player* player) {
     (*player).grappleExist = false;
 }
 
-GameState Update(float delta, Player* player, Cubies cubies, bool mPressed) {
+GameState Update(float delta, Player* player, Cubies cubies, Input input) {
     if ((*player).position.y > FLOOR_HEIGHT - PLAYER_HEIGHT/2) {
         return GAME_OVER;
     }
@@ -114,7 +151,7 @@ GameState Update(float delta, Player* player, Cubies cubies, bool mPressed) {
         }    
     }
 
-    if (mPressed) {
+    if (input.mousePressed) {
         if (!(*player).grappleExist) {;
             FireGrapplingHook(player, cubies);
         }
@@ -123,19 +160,39 @@ GameState Update(float delta, Player* player, Cubies cubies, bool mPressed) {
         }
     }
 
+    if (input.grappleReel != 0){
+        (*player).grappleMaxLength += GRAPPLE_REEL_SPEED * delta * input.grappleReel;
+    }
+
+
     Vector2 iPosition = (*player).position;
     Vector2 iVelocity = (*player).velocity;
-    (*player).velocity = (Vector2) {
-        .x = iVelocity.x,
-        .y = iVelocity.y + delta * GRAVITY,
-    };
+    iVelocity.y += delta * GRAVITY;
     if ((*player).grappleExist) {
+        float grappleNextLength = PythagLength(VectorAdd((*player).position, VectorMul(iVelocity, delta)), (*player).grapplePosition);
+        if (grappleNextLength >= (*player).grappleMaxLength) {
+            
+            Vector2 r = VectorSub((*player).position, (*player).grapplePosition);
+            r = VectorDiv(r, grappleNextLength);
+            float vr = iVelocity.x * r.x + iVelocity.y * r.y;
+            r = VectorMul(r, vr);
+            iVelocity = VectorSub(iVelocity, r);
 
+            if (input.swingDirection != 0){
+                iVelocity.x += SWING_SPEED * delta * input.swingDirection;
+            }
+        }
     }
-    (*player).position = (Vector2) {
-        .x = iPosition.x + iVelocity.x * delta, // x, v = x/t, v * t has units of x
-        .y = iPosition.y + iVelocity.y * delta,
-    };
+    (*player).velocity = iVelocity;
+    (*player).position = VectorAdd((*player).position, VectorMul(iVelocity, delta));
+    if ((*player).grappleExist) {
+        float grappleNextLength = PythagLength((*player).position, (*player).grapplePosition);
+        if (grappleNextLength >= (*player).grappleMaxLength) {
+            
+            Vector2 r = VectorSub((*player).position, (*player).grapplePosition);
+            (*player).position = VectorAdd((*player).grapplePosition, VectorMul(r, (*player).grappleMaxLength/grappleNextLength));
+        }
+    }
     return GAME_OK;
 }
 
@@ -188,10 +245,28 @@ int main() {
     GameState state = GAME_OK;
     while (!WindowShouldClose()) {
         double delta = GetFrameTime();
-        bool mPressed = IsMouseButtonPressed(MOUSE_BUTTON_LEFT); 
+        float swingDirection = 0.0;
+        if (IsKeyDown(KEY_A)) {
+            swingDirection -= 1.0;
+        }
+        if (IsKeyDown(KEY_D)) {
+            swingDirection += 1.0;
+        }
+        float grappleReel = 0.0;
+        if (IsKeyDown(KEY_W)) {
+            grappleReel -= 1.0;
+        }
+        if (IsKeyDown(KEY_S)) {
+            grappleReel += 1.0;
+        }
+        Input input = (Input) {
+            .mousePressed = IsMouseButtonPressed(MOUSE_BUTTON_LEFT),
+            .swingDirection = swingDirection,
+            .grappleReel = grappleReel,
+        }; 
         if (state == GAME_OK) {
             (*player).mPosition = GetScreenToWorld2D(GetMousePosition(), camera);
-            state = Update(delta, player, cubies, mPressed);
+            state = Update(delta, player, cubies, input);
         }
 
         BeginDrawing();
