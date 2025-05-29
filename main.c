@@ -25,12 +25,22 @@ typedef struct Cubies {
     Rectangle* data;
 } Cubies;
 
+typedef struct MenuButton {
+    Rectangle rect;
+    Color color;
+    Vector2 textPosition;
+    float fontSize;
+    char* text;
+} MenuButton;
+
 const float PLAYER_WIDTH = 40;
 const float PLAYER_HEIGHT = 60;
 const float LINE_WIDTH = 5;
 
 const float GRAPPLE_REEL_SPEED = 40;
 const float SWING_SPEED = 20;
+
+
 
 void DrawPlayer(Player *player) {
     Vector2 pos = (*player).position; 
@@ -58,6 +68,7 @@ const int SCREEN_HEIGHT = 900;
 const float FLOOR_HEIGHT = 450;
 
 typedef enum GameState {
+    GAME_MENU,
     GAME_OK,
     GAME_OVER,
 } GameState;
@@ -83,9 +94,9 @@ bool CollidesWith(Player* player, Rectangle object) {
     return false;    
 }
 
-bool GrappleLocationCheck(Player* player, Rectangle object){
-    float x = (*player).mPosition.x;
-    float y = (*player).mPosition.y;
+bool IsInsideRect(Vector2 pos, Rectangle object){
+    float x = pos.x;
+    float y = pos.y;
     // printf("reached True Check %f %f %f %f \n", object.x, object.y, x, y);
     if (x > object.x && x < object.x + object.width){
         if (y > object.y && y < object.y + object.height){ 
@@ -126,7 +137,7 @@ Vector2 VectorDiv(Vector2 v1, float scalar) {
 
 void FireGrapplingHook(Player* player, Cubies cubies) {
     for (int i = 0; i < cubies.length; i++) {
-        if (GrappleLocationCheck(player, cubies.data[i])) {
+        if (IsInsideRect((*player).mPosition, cubies.data[i])) {
             (*player).grapplePosition.x = (*player).mPosition.x;
             (*player).grapplePosition.y = (*player).mPosition.y;
             (*player).grappleExist = true;
@@ -196,9 +207,29 @@ GameState Update(float delta, Player* player, Cubies cubies, Input input) {
     return GAME_OK;
 }
 
+MenuButton CreateButton(int yOffset, Vector2 buttonSize, float fontSize, Color color, char* text) {
+    int textWidth = MeasureText(text, fontSize);
+    if (floor(textWidth) > buttonSize.x) {
+        buttonSize.x = ceil(textWidth);
+    }
+    return (MenuButton) {
+        .rect = (Rectangle) {
+            .x = SCREEN_WIDTH/2 - buttonSize.x/2,
+            .y = SCREEN_HEIGHT/2 + yOffset - buttonSize.y/2,
+            .width = buttonSize.x,
+            .height = buttonSize.y,
+        },
+        .textPosition = (Vector2) {.x = SCREEN_WIDTH/2 - textWidth/2, .y = SCREEN_HEIGHT/2 + yOffset - fontSize/2},
+        .color = color,
+        .fontSize = fontSize,
+        .text = text,
+    };
+}
+
+const char* GAME_NAME = "Drowning Point";
 
 int main() {
-    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Drowning Point");
+    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, GAME_NAME);
     SetTargetFPS(60);
 
     Player* player = &(Player) {
@@ -218,31 +249,47 @@ int main() {
         },
         .mPosition = GetMousePosition(),
     };
-    Camera2D camera = (Camera2D) {
+    Camera2D camera = {
         .offset = (Vector2) {.x = SCREEN_WIDTH/2, .y = SCREEN_HEIGHT/2},
         .target = (Vector2) {.x = 0, .y = 0},
         .rotation = 0.,
         .zoom = 1.0, 
     };
-    Rectangle cubie = (Rectangle) {
+    Rectangle cubie = {
         .x = -10,
         .y = 100,
         .height = 20,
         .width = 20,
     };
-    Rectangle cubie2 = (Rectangle) {
+    Rectangle cubie2 = {
         .x = 500,
         .y = -200,
         .height = 20,
         .width = 20,
     };
-    Cubies cubies = (Cubies) {
+    Cubies cubies = {
         .length = 2,
         .data = malloc(sizeof(Rectangle) * 2),
     };
     cubies.data[0] = cubie;
     cubies.data[1] = cubie2;
-    GameState state = GAME_OK;
+    
+    Vector2 buttonSize = {
+        .x = 300,
+        .y = 50,
+    };
+    
+    int buttonFontSize = 30;
+    MenuButton menuButtons[3] = {
+        CreateButton(0, buttonSize, buttonFontSize, BLUE, "START"),
+        CreateButton(100, buttonSize, buttonFontSize, BEIGE, "OPTIONS"),
+        CreateButton(200, buttonSize, buttonFontSize, RED, "QUIT"),
+    };
+    int buttonYOffsets[3] = { 0, 100, 200 };
+    Color buttonColor[3] = { BLUE, BEIGE, RED };
+    char* buttonText[3] = { "START", "OPTIONS", "QUIT" };
+    
+    GameState state = GAME_MENU;
     while (!WindowShouldClose()) {
         double delta = GetFrameTime();
         float swingDirection = 0.0;
@@ -263,24 +310,51 @@ int main() {
             .mousePressed = IsMouseButtonPressed(MOUSE_BUTTON_LEFT),
             .swingDirection = swingDirection,
             .grappleReel = grappleReel,
-        }; 
-        if (state == GAME_OK) {
+        };
+        if (state == GAME_MENU) {
+            if (input.mousePressed) {
+                if (IsInsideRect(GetMousePosition(), menuButtons[0].rect)) {
+                    state = GAME_OK;
+                }
+                if (IsInsideRect(GetMousePosition(), menuButtons[1].rect)) {
+                    
+                }
+                if (IsInsideRect(GetMousePosition(), menuButtons[2].rect)) {
+                    break;
+                }
+            }
+        }
+        else if (state == GAME_OK) {
             (*player).mPosition = GetScreenToWorld2D(GetMousePosition(), camera);
             state = Update(delta, player, cubies, input);
         }
 
         BeginDrawing();
             ClearBackground(RAYWHITE);
-            BeginMode2D(camera);
-                DrawPlayer(player);
-                DrawRectangleRec(cubie, BLACK);
-                DrawRectangleRec(cubie2, BLACK);
-                if ((*player).grappleExist) {
-                    DrawLineEx((*player).position, (*player).grapplePosition, 10, PINK);
+            if (state == GAME_MENU) {
+                
+                int textWidth = MeasureText(GAME_NAME, 60);
+                DrawText(GAME_NAME, SCREEN_WIDTH/2 - textWidth/2, SCREEN_HEIGHT/2 - 250, 60, RED);
+                
+                for (int i = 0; i < 3; i++) {
+                    DrawRectangleRec(menuButtons[i].rect, BEIGE);
+                    DrawText(menuButtons[i].text, menuButtons[i].textPosition.x, menuButtons[i].textPosition.y, menuButtons[i].fontSize, VIOLET);
                 }
-            EndMode2D();
-            if (state == GAME_OVER) {
-                DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, (Color) {.r = 127, .g = 127, .b = 127, .a = 80});
+            }
+            else {
+                BeginMode2D(camera);
+                    DrawPlayer(player);
+                    DrawRectangleRec(cubie, BLACK);
+                    DrawRectangleRec(cubie2, BLACK);
+                    if ((*player).grappleExist) {
+                        DrawLineEx((*player).position, (*player).grapplePosition, 10, PINK);
+                    }
+                EndMode2D();
+                if (state == GAME_OVER) {
+                    DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, (Color) {.r = 127, .g = 127, .b = 127, .a = 80});
+                    int textWidth = MeasureText("GAME OVER", 60);
+                    DrawText("GAME OVER", SCREEN_WIDTH/2 - textWidth/2, SCREEN_HEIGHT/2 - 250, 60, RED);
+                }
             }
         EndDrawing();
     }
